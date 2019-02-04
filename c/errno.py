@@ -30,8 +30,8 @@ def optFixedString(s):
 
 def optDynamicString(s):
     global optDynamic
-    optDynamic = 'char ${ERRORS}_UNKNOWN[%d];' % (len(s) + 2)
-    return '(sprintf(${ERRORS}_UNKNOWN, "%s", CODE), ${ERRORS}_UNKNOWN)' % s
+    optDynamic = 'char ${ERRORS}_UNKNOWN[%d];' % (len(s) + 3)
+    return '(sprintf(${ERRORS}_UNKNOWN, "%s", CODE % 1000), ${ERRORS}_UNKNOWN)' % s
 
 errors = filter(None, os.popen('errno -l').read(-1).split('\n'))
 errors = map(parseErrorLine, errors)
