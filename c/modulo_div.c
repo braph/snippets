@@ -1,6 +1,6 @@
 
-/*
-   uint16_t                iter;
+uint16_t                iter;
+
 int iterState(struct scan_state_t *st) {
    int n_iter = num_ports * num_auths;
 
@@ -12,5 +12,3 @@ int iterState(struct scan_state_t *st) {
    st->auth            = &(AUTH[ st-> iter % num_auths ]);
    return 1;
 }
-*/
-
