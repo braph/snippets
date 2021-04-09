@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+
+# 
+# Copyright (C) 2015 Benjamin Abendroth
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# Please prefiy temporary files with `TEMP_` so they can be automatically delted
+
+# Make scripting safe
+unset CDPATH GREP_OPTIONS
+set -u
+set +o histexpand
+
+declare -r BIN=`basename "$0" .sh`
+declare -r VERSION=0.1
+
+LOGFILE=/dev/null
+declare -i MIN_ARGS=0
+declare -i RUN_AS_ROOT=0
+declare -i VERSION_NEEDED=4
+declare -i VERBOSE=0
+declare -a DEPS=( ls )
+
+# exitcodes
+declare -ir E_OK=0              # all went good
+declare -ir E_BADOPT=70         # bad options specified
+declare -ir E_BADARG=71         # bad arguments specified
+declare -ir E_DEPENCIES=72      # depencies not met
+declare -ir E_NOT_ROOT=73       # you are not root
+declare -ir E_CANTCREATE=74     # can't create a file/dir
+declare -ir E_CANTREAD=75       # can't read/cd a file/folder
+declare -ir E_CANTREMOVE=76     # can't remove a file/folder
+declare -ir E_SCRIPTBUG=77      # an error inside the script occured
+declare -ir E_VERSION=78        # wrong bash version
+
+function help {
+	cat << EOF
+Usage: $BIN [-hvqV] [-l logfile] <files>
+
+	-h             show this help
+	-l <logfile>   specify logfile
+	-q             quiet mode
+	-v             verbose
+	-V             show version
+EOF
+	exit $E_OK
+} >&2
+
+function version {
+	cat << EOF
+$BIN, version $VERSION
+
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+
+This is free software; you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+EOF
+	exit $E_OK
+} >&2
+
+function defined {
+	[[ ${!1-X} == ${!1-Y} ]]
+}
+
+function has_value () {
+  defined $1 && [[ -n ${!1} ]]
+}
+
+function log { 
+	[[ $VERBOSE = -1 ]] && return 0
+	[[ $VERBOSE -lt $1 ]] && return 0
+	shift
+
+	echo -e "[`date '+%b %d %H:%M:%S'`] $BIN: $*" | tee -a $LOGFILE >&2
+}
+
+function die {
+	rm -rf "${!TEMP_@}"
+
+	case ${1-0} in
+		INT) log 0 "Recieved SIGINT" ;;
+		TERM) log 0 "Recieved SIGTERM" ;;
+		*) exit $1 ;;
+	esac
+}
+
+trap 'die INT' INT
+trap 'die TERM' TERM
+trap 'die QUIT' QUIT
+
+while getopts ':hqvVl:' OPTION ; do
+	case $OPTION in
+		h)	help ;;
+		l)	LOGFILE="$OPTARG" ;;
+		q)	VERBOSE=-1 ;;
+		v)	VERBOSE+=1 ;;
+		V)	version ;;
+		\?)	echo "Unknown option \"-$OPTARG\"" >&2
+				exit $E_BADOPT;;
+		:)	echo "Option \"-$OPTARG\" needs an argument." >&2
+				exit $E_BADOPT;;
+		*)	echo "Internal error..." >&2
+				exit $E_SCRIPTBUG;;
+	esac
+done
+
+shift $(( OPTIND - 1 ))
+
+if has_value DEPS ; then
+	for DEP in "${DEPS[@]-}" ; do
+		if ! which -- $DEP &>/dev/null ; then
+			log 0 "program '$DEP' not found in \$PATH"
+			FAIL=1
+		fi
+	done
+
+	has_value FAIL && exit $E_DEPENCIES
+fi
+
+if [[ $BASH_VERSINFO[0] < $VERSION_NEEDED ]] ; then
+	echo "You need to upgrade your bash to version $VERSION_NEEDED." >&2
+	exit $E_BASHVERSION
+fi
+
+if [[ $# < $MIN_ARGS ]] ; then
+	echo "At least $MIN_ARGS argument`[[ $MIN_ARGS > 1 ]] && printf s` needed" >&2
+	exit $E_BADARGS
+fi
+
+if [[ $RUN_AS_ROOT = 1 && $UID != 0 ]] ; then
+	echo "This script needs to be run as root" >&2
+	exit $E_NOT_ROOT
+fi
+
+unset DEP DEPS VERSION_NEEDED RUN_AS_ROOT NEEDED_ARGS FAIL
+
+for ARG ; do
+	echo $ARG
+done
+
+die $E_OK
